@@ -84,3 +84,19 @@ fn distinct_slots_and_closed_windows_stay_legal() {
     let r = check(src);
     assert_eq!(r.verdict, Verdict::Accept, "got {:?}", codes(&r));
 }
+
+#[test]
+fn closure_captured_slot_loan_extends_unique_window() {
+    assert_e3102(
+        "    m := map[string]acct{\"a\": acct{bal: 1}}\n    p := &m[\"a\"]\n    f := fn() {\n        p.bal = 99\n    }\n    q := &m[\"a\"]\n    q.bal = 50\n    f()\n",
+        "second loan while p is captured by closure f (#946)",
+    );
+}
+
+#[test]
+fn loop_carried_slot_loan_extends_unique_window() {
+    assert_e3102(
+        "    m := map[string]acct{\"a\": acct{bal: 1}}\n    p := &m[\"a\"]\n    for i in 0..2 {\n        q := &m[\"a\"]\n        q.bal = i\n        p.bal = p.bal + 1\n    }\n",
+        "second loan inside loop while p is loop-carried (#946)",
+    );
+}
