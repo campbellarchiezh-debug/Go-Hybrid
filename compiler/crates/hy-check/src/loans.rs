@@ -527,15 +527,17 @@ impl<'a> Checker<'a> {
         what: &str,
     ) {
         let Some(loan) = st.loans.iter().find(|l| {
+            let eff_last = self.effective_loan_last(st, l);
             matches!(&l.target, LoanTarget::MapSlot { binding, path: p, key: k }
                 if owner != Some(binding.as_str())
                     && a3_paths_conflict(st, p, path)
                     && !matches!((k.as_deref(), key), (Some(a), Some(b)) if a != b))
                 && l.created <= idx
-                && idx <= l.last
+                && idx <= eff_last
         }) else {
             return;
         };
+        let eff_last = self.effective_loan_last(st, loan);
         let LoanTarget::MapSlot { binding, .. } = &loan.target else {
             unreachable!("filtered above");
         };
@@ -546,7 +548,7 @@ impl<'a> Checker<'a> {
         let notes = vec![
             format!(
                 "{} ({}:{}) is a unique loan on a slot of `{}`, live from creation to its last use (O8, non-lexical window ending at statement {})",
-                loan.desc, self.path, loan.span.start, path, loan.last
+                loan.desc, self.path, loan.span.start, path, eff_last
             ),
             format!(
                 "the loan lowers to copy-out / store-back, so this access and `{}` would silently overwrite each other — finish using `{}` first, or mutate the slot only through `{}`",
@@ -2599,25 +2601,28 @@ impl<'a> Checker<'a> {
             let inherited: Vec<Loan> = st
                 .loans
                 .iter()
-                .filter_map(|l| match &l.target {
-                    LoanTarget::MapSlot { binding, path, key }
-                        if l.created <= idx
-                            && idx <= l.last
-                            && a3_paths_conflict(st, path, &src) =>
-                    {
-                        Some(Loan {
-                            target: LoanTarget::MapSlot {
-                                binding: binding.clone(),
-                                path: name.to_string(),
-                                key: key.clone(),
-                            },
-                            created: l.created,
-                            last: l.last,
-                            span: l.span,
-                            desc: l.desc.clone(),
-                        })
+                .filter_map(|l| {
+                    let eff_last = self.effective_loan_last(st, l);
+                    match &l.target {
+                        LoanTarget::MapSlot { binding, path, key }
+                            if l.created <= idx
+                                && idx <= eff_last
+                                && a3_paths_conflict(st, path, &src) =>
+                        {
+                            Some(Loan {
+                                target: LoanTarget::MapSlot {
+                                    binding: binding.clone(),
+                                    path: name.to_string(),
+                                    key: key.clone(),
+                                },
+                                created: l.created,
+                                last: eff_last,
+                                span: l.span,
+                                desc: l.desc.clone(),
+                            })
+                        }
+                        _ => None,
                     }
-                    _ => None,
                 })
                 .collect();
             st.loans.extend(inherited);
