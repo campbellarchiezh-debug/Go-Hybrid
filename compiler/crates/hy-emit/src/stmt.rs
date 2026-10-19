@@ -2240,7 +2240,9 @@ impl Emitter {
             match else_arm {
                 Some(arm) => {
                     self.push("} else {");
-                    self.emit_block_body(&arm.body.stmts)?;
+                    self.indent += 1;
+                    self.emit_arm_stmts_with_loans(&arm.body.stmts)?;
+                    self.indent -= 1;
                     self.push("}");
                 }
                 None => {
@@ -2620,6 +2622,10 @@ impl Emitter {
     }
 
     fn stmt_supports_loan_handoff(st: &Stmt) -> bool {
+        // #546: branch hand-off applies strictly to single-entry/single-exit
+        // conditional branches. Stmt::For must NOT receive hand-off: a loop
+        // executes 0..N times, so a 0-iteration loop drops the pre-loop store-back
+        // and a multi-iteration loop clobbers mutations across iterations (#946).
         matches!(
             st,
             Stmt::If { .. }
@@ -2627,7 +2633,6 @@ impl Emitter {
                 | Stmt::Select { .. }
                 | Stmt::Block { .. }
                 | Stmt::Managed { .. }
-                | Stmt::For { .. }
         )
     }
 
