@@ -688,12 +688,12 @@ impl<'a> Checker<'a> {
             (ForeignOpaque(_), _) | (_, ForeignOpaque(_)) => true,
             (Primitive, Primitive) | (Str, Str) | (Atomic, Atomic) => true,
             (Struct(Some(a)), Struct(Some(b))) => a == b,
-            (Map(_, _), Map(_, _)) => true,
-            (Slice(_), Slice(_)) | (Array(_), Array(_)) => true,
-            // Go converts between slice and array of the same element class
-            // only in limited cases; keep coarse-class permissive here.
-            (Slice(_), Array(_)) | (Array(_), Slice(_)) => true,
-            (Pointer(_), Pointer(_)) => true,
+            (Map(gk, gv), Map(wk, wv)) => {
+                Self::shape_may_be_elem(gk, wk) && Self::shape_may_be_elem(gv, wv)
+            }
+            (Slice(a), Slice(b)) => Self::shape_may_be_elem(a, b),
+            (Array(a), Array(b)) => Self::shape_may_be_elem(a, b),
+            (Pointer(a), Pointer(b)) => Self::shape_may_be_elem(a, b),
             (Chan(a), Chan(b)) => Self::shape_may_be_elem(a, b),
             (Closure, Closure) => true,
             (OwnHandle(a), OwnHandle(b)) | (BorrowHandle(a), BorrowHandle(b)) => a == b,
