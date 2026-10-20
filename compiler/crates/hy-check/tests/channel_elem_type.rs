@@ -211,3 +211,22 @@ fn nonsendable_pointer_keeps_e3002_no_cascade() {
 }
 
 
+
+const SEND_MAP_STRING_STRING_INTO_MAP_STRING_INT: &str = "\
+fn main() {
+    ch := make(chan map[string]int, 1)
+    m := map[string]string{\"a\": \"b\"}
+    ch <- m
+}
+";
+
+#[test]
+fn reject_incompatible_map_element_type() {
+    let diags = errors_of(SEND_MAP_STRING_STRING_INTO_MAP_STRING_INT);
+    assert_eq!(
+        diags.len(),
+        1,
+        "expected 1 HYB-E3011 for incompatible map value shape, got: {diags:?}"
+    );
+    assert_eq!(diags[0].code.as_deref(), Some("HYB-E3011"));
+}
